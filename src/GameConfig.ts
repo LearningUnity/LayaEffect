@@ -12,7 +12,7 @@ export default class GameConfig{
     static screenMode:string="none";
     static alignV:string="top";
     static alignH:string="left";
-    static startScene:any="canvas/Lightning.scene";
+    static startScene:any="shader/MeltEffect.scene";
     static sceneRoot:string="";
     static debug:boolean=false;
     static stat:boolean=true;
