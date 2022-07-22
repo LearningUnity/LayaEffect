@@ -5,6 +5,20 @@
     var REG = Laya.ClassUtils.regClass;
     var ui;
     (function (ui) {
+        var canvas;
+        (function (canvas) {
+            class LightningUI extends Scene {
+                constructor() { super(); }
+                createChildren() {
+                    super.createChildren();
+                    this.loadScene("canvas/Lightning");
+                }
+            }
+            canvas.LightningUI = LightningUI;
+            REG("ui.canvas.LightningUI", LightningUI);
+        })(canvas = ui.canvas || (ui.canvas = {}));
+    })(ui || (ui = {}));
+    (function (ui) {
         var shader;
         (function (shader) {
             class MeltEffectUI extends Scene {
@@ -18,6 +32,223 @@
             REG("ui.shader.MeltEffectUI", MeltEffectUI);
         })(shader = ui.shader || (ui.shader = {}));
     })(ui || (ui = {}));
+
+    class LightningVector {
+        constructor(x, y, x1, y1) {
+            this.X = x;
+            this.Y = y;
+            this.X1 = x1;
+            this.Y1 = y1;
+        }
+        delX() {
+            return this.X1 - this.X;
+        }
+        delY() {
+            return this.Y1 - this.Y;
+        }
+        normalized() {
+            let len = this.length();
+            return new LightningVector(this.X, this.Y, this.X + (this.delX() / len), this.Y + (this.delY() / len));
+        }
+        length() {
+            return Math.sqrt(Math.pow(this.delX(), 2) + Math.pow(this.delY(), 2));
+        }
+        multiply(num) {
+            return new LightningVector(this.X, this.Y, this.X + this.delX() * num, this.Y + this.delY() * num);
+        }
+        clone() {
+            return new LightningVector(this.X, this.Y, this.X1, this.Y1);
+        }
+    }
+
+    class Lightning {
+        constructor(cfg) {
+            this.config = cfg;
+        }
+        cast(context, from, to) {
+            if (!from || !to) {
+                return;
+            }
+            let mainVector = new LightningVector(from.X1, from.Y1, to.X1, to.Y1);
+            if (this.config.threshold && mainVector.length() > context.canvas.width * this.config.threshold) {
+                return;
+            }
+            let mainLength = mainVector.length();
+            let posLenRateInCanvas = (mainLength / context.canvas.width);
+            let usingSegmentCount = Math.floor(this.config.segments * posLenRateInCanvas);
+            let perNodeDis = mainLength / usingSegmentCount;
+            let fromPos = from;
+            for (let i = 1; i <= usingSegmentCount; i++) {
+                let tempPos = mainVector.multiply((1 / usingSegmentCount) * i);
+                if (i != usingSegmentCount) {
+                    tempPos.X1 += perNodeDis * Math.random();
+                    tempPos.Y1 += perNodeDis * Math.random();
+                }
+                let toPos = new LightningVector(fromPos.X1, fromPos.Y1, tempPos.X1, tempPos.Y1);
+                this.line(context, toPos);
+                fromPos = toPos;
+            }
+            this.circle(context, from, posLenRateInCanvas);
+            this.circle(context, to, posLenRateInCanvas);
+            context.restore();
+        }
+        circle(context, pos, posLenRateInCanvas) {
+            let cfg = this.config;
+            context.shadowBlur = cfg.circle.shadowBlur;
+            context.shadowColor = cfg.circle.shadowColor;
+            context.strokeStyle = cfg.circle.strokeStyle;
+            context.lineWidth = cfg.circle.lineWidth;
+            context.beginPath();
+            context.arc(pos.X1 + Math.random() * 10 * posLenRateInCanvas, pos.Y1 + Math.random() * 10 * posLenRateInCanvas, 5, 0, 2 * Math.PI, false);
+            context.stroke();
+        }
+        line(context, vec) {
+            let cfg = this.config;
+            context.shadowBlur = cfg.line.shadowBlur;
+            context.shadowColor = cfg.line.shadowColor;
+            context.strokeStyle = cfg.line.strokeStyle;
+            context.lineWidth = cfg.line.lineWidth;
+            context.beginPath();
+            context.moveTo(vec.X, vec.Y);
+            context.lineTo(vec.X1, vec.Y1);
+            context.stroke();
+        }
+        random(min, max) {
+            return Math.floor(Math.random() * (max - min)) + min;
+        }
+    }
+
+    class LightningCfg {
+        constructor() {
+            this.segments = 40;
+            this.threshold = 0.5;
+            this.circle = {
+                lineWidth: 1,
+                strokeStyle: "#ffffff",
+                shadowBlur: 0.1,
+                shadowColor: "#006dff"
+            };
+            this.line = {
+                lineWidth: 1,
+                strokeStyle: "#ffffff",
+                shadowBlur: 5,
+                shadowColor: "#127bca"
+            };
+        }
+    }
+
+    class LightningMgr {
+        constructor() {
+            this.isInit = false;
+            this.isDrawing = true;
+            this.points = [];
+        }
+        static get ins() {
+            if (!this._ins) {
+                this._ins = new LightningMgr();
+            }
+            return this._ins;
+        }
+        init(sprite) {
+            if (!this.isInit) {
+                this.isInit = true;
+                this.sprite = sprite;
+                this.canvas = new Laya.HTMLCanvas(true);
+                this.canvas.size(Laya.stage.width, Laya.stage.height);
+                this.lightningCfg = new LightningCfg();
+                this.lightning = new Lightning(this.lightningCfg);
+                this.posVec = new LightningVector(0, 0, 0, 0);
+                this.points.push(new LightningVector(0, 0, this.canvas.width / 2, this.canvas.height / 2));
+                this.points.push(new LightningVector(0, 0, 20, 20));
+                this.points.push(new LightningVector(0, 0, this.canvas.width / 2, 20));
+                this.points.push(new LightningVector(0, 0, this.canvas.width - 20, 20));
+                this.points.push(new LightningVector(0, 0, 20, this.canvas.height - 20));
+                this.points.push(new LightningVector(0, 0, this.canvas.width / 2, this.canvas.height - 20));
+                this.points.push(new LightningVector(0, 0, this.canvas.width - 20, this.canvas.height - 20));
+            }
+        }
+        startTimer() {
+            if (this.isInit) {
+                this.stopTimer();
+                Laya.timer.frameLoop(1, this, this.update);
+            }
+        }
+        stopTimer() {
+            Laya.timer.clearAll(this);
+        }
+        beginDraw(posX, posY) {
+            if (this.isInit) {
+                this.isDrawing = true;
+                this.posVec.X = 0;
+                this.posVec.Y = 0;
+                this.posVec.X1 = posX;
+                this.posVec.Y1 = posY;
+            }
+        }
+        pauseDraw() {
+            this.isDrawing = false;
+        }
+        update() {
+            if (this.isDrawing) {
+                this.canvas.clear();
+                this.points.forEach(lightningVec => {
+                    this.lightning.cast(this.canvas.context, lightningVec, this.posVec);
+                });
+                this.sprite.graphics.drawImage(this.canvas.getTexture());
+            }
+        }
+        clearCanvas() {
+            if (this.canvas) {
+                this.canvas.clear();
+            }
+        }
+        destroy() {
+            this.stopTimer();
+            this.canvas.clear();
+            this.canvas.destroy();
+            this.canvas = null;
+            this.sprite = null;
+            this.lightningCfg = null;
+            this.lightning = null;
+            this.points = [];
+            this.isInit = false;
+        }
+    }
+
+    class LightningSceneCtrl extends ui.canvas.LightningUI {
+        onAwake() {
+            console.log('onAwake');
+            this.addUIEvent();
+        }
+        onEnable() {
+            LightningMgr.ins.init(this.sp_lightning);
+            LightningMgr.ins.startTimer();
+        }
+        addUIEvent() {
+            Laya.stage.on(Laya.Event.MOUSE_DOWN, this, this.onHandler);
+            Laya.stage.on(Laya.Event.MOUSE_UP, this, this.onHandler);
+            Laya.stage.on(Laya.Event.MOUSE_MOVE, this, this.onHandler);
+        }
+        removeUIEvent() {
+            Laya.stage.off(Laya.Event.MOUSE_DOWN, this, this.onHandler);
+            Laya.stage.off(Laya.Event.MOUSE_UP, this, this.onHandler);
+            Laya.stage.off(Laya.Event.MOUSE_MOVE, this, this.onHandler);
+        }
+        onHandler(e) {
+            switch (e.type) {
+                case Laya.Event.MOUSE_DOWN:
+                case Laya.Event.MOUSE_MOVE:
+                    LightningMgr.ins.beginDraw(e.stageX, e.stageY);
+                    break;
+                case Laya.Event.MOUSE_UP:
+                    LightningMgr.ins.pauseDraw();
+                    break;
+            }
+        }
+        onDestroy() {
+            this.removeUIEvent();
+        }
+    }
 
     var vs = `
     attribute vec4 posuv;
@@ -243,6 +474,7 @@
         }
         static init() {
             var reg = Laya.ClassUtils.regClass;
+            reg("canvas/lightning/LightningSceneCtrl.ts", LightningSceneCtrl);
             reg("shader/MeltEffectSceneCtrl.ts", MeltEffectSceneCtrl);
             reg("shader/ShaderDissolve.ts", ShaderDissolve);
         }
@@ -253,7 +485,7 @@
     GameConfig.screenMode = "none";
     GameConfig.alignV = "top";
     GameConfig.alignH = "left";
-    GameConfig.startScene = "shader/MeltEffect.scene";
+    GameConfig.startScene = "canvas/Lightning.scene";
     GameConfig.sceneRoot = "";
     GameConfig.debug = false;
     GameConfig.stat = true;

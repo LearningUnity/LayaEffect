@@ -3,6 +3,17 @@ import View=Laya.View;
 import Dialog=Laya.Dialog;
 import Scene=Laya.Scene;
 var REG: Function = Laya.ClassUtils.regClass;
+export module ui.canvas {
+    export class LightningUI extends Scene {
+		public sp_lightning:Laya.Sprite;
+        constructor(){ super()}
+        createChildren():void {
+            super.createChildren();
+            this.loadScene("canvas/Lightning");
+        }
+    }
+    REG("ui.canvas.LightningUI",LightningUI);
+}
 export module ui.shader {
     export class MeltEffectUI extends Scene {
 		public img:Laya.Image;

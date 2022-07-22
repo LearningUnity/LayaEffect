@@ -1,0 +1,1 @@
+{"type":"Scene","props":{"width":750,"runtime":"canvas/lightning/LightningSceneCtrl.ts","height":1624},"compId":2,"child":[{"type":"Sprite","props":{"var":"sp_lightning","name":"sp_lightning"},"compId":3}],"loadList":[],"loadList3D":[]}
