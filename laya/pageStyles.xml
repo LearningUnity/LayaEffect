@@ -1,0 +1,4 @@
+<page>
+   <item name="test/TestScene.scene" props="" ifExport="分离模式" aName=""/>
+   <item name="shader/MeltEffect.scene" props="" ifExport="分离模式" aName=""/>
+</page>
